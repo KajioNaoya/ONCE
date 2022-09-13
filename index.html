@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="ja">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>ONCE</title>
+        <link rel="stylesheet" href="style.css">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Questrial&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css?family=Roboto+Condensed" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+    </head>
+    <body>
+        <div class="background"></div>
+        <div id="body">
+            <div class="fixed-area" id="fixed-area">
+                <div class="header">
+                    <div class="main-title-once">SOULINE</div>
+                </div>
+                <!-- <button @click="infos.map((info) => {info.unlocked = false;});" style="font-size: xx-small;">リセット（デバッグ用）</button> -->
+
+                <div class="code-form">
+                    <div class="code">CODE</div>
+                    <div class="textbox-container">
+                        <input type="text" class="textbox" id="textbox" v-model="code" maxlength="6">
+                        <div class="letter-grid">
+                            <div class="letter-cell"></div>
+                            <div class="letter-cell"></div>
+                            <div class="letter-cell"></div>
+                            <div class="letter-cell"></div>
+                            <div class="letter-cell"></div>
+                            <div class="letter-cell"></div>
+                        </div>
+                    </div>
+                    <button class="ok-button" @click="examineCode">OK</button>
+                </div>
+
+                <div class="passport-container">
+                    <div class="passport" :class="{'passport-locked': is_alpha_locked}" @click="showAlphaPassport()">{{ is_alpha_locked ? '部屋α 入室不可' : '部屋α 入室可'}}</div>
+                    <div class="passport" :class="{'passport-locked': is_beta_locked}" @click="showBetaPassport()">{{ is_beta_locked ? '部屋β 入室不可' : '部屋β 入室可'}}</div>
+                </div>
+
+                <!-- <button class="filter-button" @click="filter.display = !filter.display">フィルタ{{ (filter.display ? '▲' : '▼') }}</button> -->
+                <!-- <div class="filter-container">
+                    <div v-for="(attr, index) in filter.attrs" :key="attr.attr_name" class="filter-item">
+                        <input type="checkbox" :id="index" class="checkbox" v-model="attr.is_checked">
+                        <label :for="index">{{ attr.attr_name }}</label>
+                    </div>
+                </div> -->
+            </div>
+
+            <div id="offset-fixed-area"></div>
+
+            <div class="info-container" id="info-container">
+                <div v-for="item in unlocked_infos" :key="item.key" class="info-box" @click="showLargeImage(item.id)">
+                    <img :src="'img/' + item.info" class="info-img">
+                    <div class="banner job-banner">{{item.job}}</div>
+                    <!-- <div class="banner code-banner">{{item.key}}</div> -->
+                </div>
+            </div>
+
+            <div class="overlay" v-if="overlay.display != 'hidden'">
+                <div class="modal modal-dialog" v-if="overlay.display == 'dialog'">
+                    <p class="modal-text-success" v-if="overlay.success">CONNECTED!</p>
+                    <p class="modal-text" v-html="overlay.contents"></p>
+                    <button class="close-modal ok-button" @click="closeModalOrShowPassport();">OK</button>
+                </div>
+
+                <div class="modal modal-img" v-if="overlay.display == 'img' || overlay.display == 'text'">
+                    <div class="relative-box">
+                        <img width="100%" :src="'img/' + infos[overlay.imgId].info" class="info-img info-img-large" v-if="overlay.display == 'img'">
+                        <div class="caption">
+                            {{ infos[overlay.imgId].talk }}
+                            <div class="job-title">
+                                {{ infos[overlay.imgId].job }}
+                            </div>
+                        </div>
+                        <div class="close-modal-x" @click="overlay.display = 'hidden';">×</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <script>
+            new Vue({
+                el: '#body',
+                data: {
+                    alpha_border: 10,
+                    beta_border: 18,
+                    alpha_unlock_text: "あなたは数々のシシャとCONNECTしたことで、<br>新たなエリア <b>ルームα</b> に<br>入れるようになった！<br><br>※この画面をルームαの前にいる<br>スタッフに見せてください<br>※「部屋α 入室可」をタップして<br>この画面を再表示できます",
+                    beta_unlock_text: "あなたは数々のシシャとCONNECTしたことで、<br>新たなエリア <b>ルームβ</b> に<br>入れるようになった！<br><br>※この画面をルームβの前にいる<br>スタッフに見せてください<br>※「部屋β 入室可」をタップして<br>この画面を再表示できます",
+                    code: "",
+                    infos: [ //idはスプシにある情報番号から全部1つずれているのが正常です
+                        {
+                            "id": 0,
+                            "key": "あいことなる",
+                            "job": "あるアイドル",
+                            "talk": "部屋の真ん中には大きな箱があったよ！まずは片づけをすればいいみたいだね！頑張るぞっ！！",
+                            "info": "1.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 1,
+                            "key": "さいれんおん",
+                            "job": "ある救急隊員",
+                            "talk": "これらのものを片付けると箱が開くようだ。早急にこれらについているマークを探さなければ...！",
+                            "info": "2.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 2,
+                            "key": "らしんばんざ",
+                            "job": "ある天文学者",
+                            "talk": "「片付け」は指定のものを床のマークの上に置くことなのか。砂時計には月と星が描かれているから...",
+                            "info": "3.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 3,
+                            "key": "よんほうこう",
+                            "job": "ある大道芸人",
+                            "talk": "砂時計が2つ。別々のマークがついている。部屋の右上の角と右真ん中のあたりに置いて...。これでよし！次は本を片付けよう！",
+                            "info": "4.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 4,
+                            "key": "じこかいけつ",
+                            "job": "あるディーラー",
+                            "talk": "4冊の本のマークはクラブとスペードと……とにかく同じマークの床に置かなくては。",
+                            "info": "5.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 5,
+                            "key": "にほんのけん",
+                            "job": "ある測量家",
+                            "talk": "おっと危ない。部屋の中を歩いているときに片付けた砂時計を違うところに蹴ってしまうところだった。",
+                            "info": "6.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 6,
+                            "key": "ちがうみかた",
+                            "job": "あるエンジニア",
+                            "talk": "砂時計を置いた後に本を片付けたら自動で箱が開いたな。死神はどのようなプログラムを組んでいるのだろうか...？",
+                            "info": "7.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 7,
+                            "key": "あきのみかく",
+                            "job": "ある農家",
+                            "talk": "片付ける本には全て鎖が巻かれて南京錠がかけられていたから中を見ることはできなかった... 本にはトランプのマークがついてたから、それぞれ対応するところに置いたら、箱が開いた。",
+                            "info": "8.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 8,
+                            "key": "とびらのうら",
+                            "job": "ある門番",
+                            "talk": "「ゆだんたいてき」……7つの鍵にそれぞれ1つのひらがながタグづけされているな... とりあえずこれら謎を解いてから考えるとするか。",
+                            "info": "9.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 9,
+                            "key": "ぐっどらっく",
+                            "job": "ある謎解き作家",
+                            "talk": "上手くピースは配置できたけど、数字なんてどこにもないぞ...「数字」が太くなってるけどなんか重要なのかな...？",
+                            "info": "10.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 10,
+                            "key": "みゅーじかる",
+                            "job": "あるトリマー",
+                            "talk": "\"そしたら次は……複数回登場するアルファベットは S,O,R,T...\"",
+                            "info": "11.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 11,
+                            "key": "わんうぃーく",
+                            "job": "ある時計技師",
+                            "talk": "分かったかもしれない。これ、残った単語を英語に直すと上手くいくのでは...？",
+                            "info": "12.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 12,
+                            "key": "はんどさいん",
+                            "job": "あるパフォーマー",
+                            "talk": "封筒の中の紙に加えて、こいつも使うらしい。しかしなぜこれだけデカデカと壁に掛けてあるんだ？",
+                            "info": "13.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 13,
+                            "key": "じょやのかね",
+                            "job": "ある住職",
+                            "talk": "全ての答えが出たが、その答えの文字数の合計が盤面のマス数より多い。どう解釈すればよいのだろう。",
+                            "info": "14.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 14,
+                            "key": "かけたところ",
+                            "job": "ある動画配信者",
+                            "talk": "『OPEN』が書かれた本の背景の色は、先ほど片付けた鎖付きの本の色と対応ができそうです！！つまり！それぞれの本の南京錠を開けるための鍵は...",
+                            "info": "15.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 15,
+                            "key": "ふるいおとし",
+                            "job": "ある見習いコック",
+                            "talk": "なんとか最初の箱を開けてこれからこのステップに挑むのだが……もう、時間が… まさに...３，２，１，０...「ゆだんたいてき」ってか...",
+                            "info": "16.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 16,
+                            "key": "くくくくくく",
+                            "job": "ある解錠師",
+                            "talk": "指示に従って、本の南京錠に鍵を4つ差し込んでひねったところ、勝手に箱が開いた。これでクリアということなのだろう。",
+                            "info": "17.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 17,
+                            "key": "はんぷくよこ",
+                            "job": "ある体育教師",
+                            "talk": "なぜだ！正しい鍵で開けたのになぜ箱が開かない？まさか、俺が指示を忘れて本を片付けた場所から動かしたのが悪いのか？",
+                            "info": "18.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 18,
+                            "key": "えんあうおう",
+                            "job": "あるラッパー",
+                            "talk": "これで３つ目の箱までたどり着いたぞ...！鎖をほどいて本の中の栞を急いで取ってこなくては...",
+                            "info": "19.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 19,
+                            "key": "ふぉーてぃー",
+                            "job": "ある英語教師",
+                            "talk": "\"There are numbers on the front side and on the back side of the bookmark , how can I solve this...? I don't know...(栞の表の面にも裏の面にも数字があるけど、どうやって解くのだろう...？分からないな...。)\"",
+                            "info": "20.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 20,
+                            "key": "せいはんたい",
+                            "job": "ある塾講師",
+                            "talk": "出てきた四つの答えをそのまま遺書に埋めたけど、不正解でしたね。遺書の書き方はどこで読めたのだろうか？",
+                            "info": "21.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 21,
+                            "key": "だうんろーど",
+                            "job": "あるキャッチャー",
+                            "talk": "先ほど中が見れるようになった本の中からしおりが見つかった。どうやらこれが謎のようだ。４枚とも表と裏の情報を使うことで答えが出るように思える。",
+                            "info": "22.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 22,
+                            "key": "あっぷでーと",
+                            "job": "あるピッチャー",
+                            "talk": "これらのしおりは全て表と裏の情報で答えが出るようになっていそうだ。青い本に挟まっていたカラフルな栞はどうやって解くんだろう？",
+                            "info": "23.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 23,
+                            "key": "ぼとるねっく",
+                            "job": "ある暗殺者",
+                            "talk": "遺書は書けた。最期に書くにふさわしい二文だ。さあ、そこにいる死神に提出して箱をあけようじゃないか。",
+                            "info": "24.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 24,
+                            "key": "かずのぶぶん",
+                            "job": "ある言語学者",
+                            "talk": "4つの答えは出揃った！あとはその文字を「遺書の書き方」にあるように過不足なく埋めて、遺書の文を作ると……",
+                            "info": "25.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 25,
+                            "key": "いっかいずつ",
+                            "job": "ある数学者",
+                            "talk": "遺書の二文は答えの文字を1回ずつすべて使っていて、実に美しかったのを覚えている.これは「アナグラム」という一種の言葉遊びだな、興味深い.",
+                            "info": "26.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 26,
+                            "key": "ふじのたかね",
+                            "job": "ある王",
+                            "talk": "死神の野郎、最初から最後までずっとそこに立って俺の最期を見届けてやがった。人が解けないのをみるのがそんなに楽しいのか？",
+                            "info": "27.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 27,
+                            "key": "たくしーすう",
+                            "job": "あるタクシードライバー",
+                            "talk": "こんなときこそしっかりとまわりをみて、安全運転で行かなくては！私は、死神によってこの箱に閉じ込められている。壁にはタブレットがある。真ん中の箱には……",
+                            "info": "28.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 28,
+                            "key": "おととぼうし",
+                            "job": "あるバンドマン",
+                            "talk": "箱の内側にこのようなイラストがあったがこれはなんなのだろうか。旗の上に本？？？",
+                            "info": "29.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 29,
+                            "key": "あいすえいじ",
+                            "job": "ある探検家",
+                            "talk": "この箱にも内側にイラストがあった。このイラストにも四角で囲まれた旗が描かれているな...",
+                            "info": "30.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 30,
+                            "key": "ってなーんだ",
+                            "job": "あるクイズ作家",
+                            "talk": "3つ目の箱を開けたら、やっぱり今までと同じくイラストがあった。3つ目の箱には確か、手紙を入れる封筒っぽいイラストの上に遺書があったことを記憶している",
+                            "info": "31.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 31,
+                            "key": "よろしくです",
+                            "job": "ある魔法使い",
+                            "talk": "全部の箱には四角の模様で囲まれたイラストの上に違うイラストが描かれているねぇ",
+                            "info": "32.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 32,
+                            "key": "おなじところ",
+                            "job": "あるお笑い芸人",
+                            "talk": "なにぃ！？３つ目の箱の中には箱なんてないだとぉ...！それに部屋の中を見渡したって箱らしい箱なんてないぞぉ！！",
+                            "info": "33.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 33,
+                            "key": "えれべーたー",
+                            "job": "あるエレベーターガール",
+                            "talk": "3つ目の箱の内側にはエレベーターの下ボタンが遺書の下に描かれているイラストがあったわ。なんで今までは旗だったのにこれだけ下ボタンが描かれているのかしら？",
+                            "info": "34.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 34,
+                            "key": "のぼりくだり",
+                            "job": "ある音楽家",
+                            "talk": "この部屋は入ってきた扉以外に扉や窓はなく、完全な密室だ。扉は開かず、ただタブレットが無情に余命を刻むのみ。ここが、私の死地なのだろうか。",
+                            "info": "35.jpg",
+                            "unlocked": false
+                        },
+                        {
+                            "id": 35,
+                            "key": "きせつのなか",
+                            "job": "ある落語家",
+                            "talk": "死神が先ほど私に伝えてきたクリアのための条件は、『寿命が尽きた瞬間にすべての箱が開いている状態になっていること』だった。ここにある大きな箱がまず目に入る。一体いくつの箱があるのか。",
+                            "info": "36.jpg",
+                            "unlocked": false
+                        }
+                    ],
+                    overlay: {
+                        display: "hidden", //hidden dialog(コード入力時) img(画像情報) text(文字情報)
+                        contents: "", //テキスト
+                        success: false, //開錠に成功したか
+                        imgId: -1 //詳細表示する情報のid
+                    }
+                    // filter: {
+                    //     display: false, //フィルタメニューの表示内容
+                    //     attrs: [
+                    //         {
+                    //             attr_name: "attr1",
+                    //             is_checked: false
+                    //         }
+                    //     ]   //チェック0なら全部有効（computedのfilter_is_void = true）になる
+                    // }
+                },
+                computed: {
+                    unlocked_infos: function(){
+                        return this.infos.filter((item) => item.unlocked);
+                    },
+                    // filtered_unlocked_infos: function(){
+                    //     return this.unlocked_infos.filter((item) =>
+                    //         item.attrs.filter((attr) => this.filter_attrs.includes(attr)).length != 0);
+                    // },
+                    // filter_is_void: function(){
+                    //     return this.filter.attrs.filter((attr) => attr.is_checked).length == 0;
+                    // },
+                    // filter_attrs: function(){ //チェックされている属性の配列
+                    //     let filter_attrs = [];
+                    //     if(this.filter_is_void){
+                    //         filter_attrs = this.filter.attrs.map((attr) => attr.attr_name); //全属性
+                    //     } else {
+                    //         filter_attrs = this.filter.attrs.filter((attr) => attr.is_checked).map((attr) => attr.attr_name); //チェックされている属性
+                    //     }
+                    //     return filter_attrs;
+                    // },
+                    is_alpha_locked: function(){
+                        return this.unlocked_infos.length < this.alpha_border
+                    },
+                    is_beta_locked: function(){
+                        return this.unlocked_infos.length < this.beta_border
+                    }
+                },
+                methods: {
+                    examineCode(){
+                        //keyが一致すればその情報が、なければundefined
+                        let new_info = this.infos.find((item) => item.key === this.code);
+                        if(new_info){
+                            if(new_info.unlocked){
+                                this.overlay.success = false;
+                                this.overlay.contents = `コード「${this.code}」の情報は解放済です`;
+                                this.overlay.display = 'dialog';
+                            } else {
+                                this.infos.find((item) => item.id == new_info.id).unlocked = true;
+                                this.overlay.success = true;
+                                this.overlay.contents = `${new_info.job}から<br>遺志を託された！`;
+                                // if(this.unlocked_infos.length == 10){
+                                //     this.overlay.contents = this.overlay.contents + "<br><br>あなたは数々のシシャとCONNECTしたことで、<br>新たなエリア <b>ルームα</b> に<br>入れるようになった！<br>※この画面をルームαの前にいるスタッフに見せてください";
+                                // } else if(this.unlocked_infos.length == 18){
+                                //     this.overlay.contents = this.overlay.contents + "<br><b>部屋βへの入室許可証を手に入れた！</b>";
+                                // }
+                                this.overlay.display = 'dialog';
+                            }
+                        } else {
+                            this.overlay.success = false;
+                            this.overlay.contents = "コードが間違っています";
+                            this.overlay.display = 'dialog';
+                        }
+                        this.code = "";
+                    },
+                    showLargeImage(img_id){
+                        this.overlay.imgId = img_id;
+                        if(this.infos[img_id].info == 'simple_background.jpg'){ //文字情報なら
+                            this.overlay.display = "text";
+                        } else {
+                            this.overlay.display = "img";
+                        }
+                    },
+                    closeModalOrShowPassport(){
+                        if(this.unlocked_infos.length == this.alpha_border && this.overlay.success == true){ //閾値に達し、かつCONNECTED表示後（通行証表示後を弾く）
+                            this.showAlphaPassport();
+                        } else if(this.unlocked_infos.length == this.beta_border && this.overlay.success == true){ //閾値に達し、かつCONNECTED表示後（通行証表示後を弾く）
+                            this.showBetaPassport();
+                        } else {
+                            this.overlay.display = 'hidden';
+                        }
+                    },
+                    showAlphaPassport(){
+                        if(!this.is_alpha_locked){
+                            this.overlay.success = false;
+                            this.overlay.contents = this.alpha_unlock_text;
+                            this.overlay.display = "dialog";
+                        }
+                    },
+                    showBetaPassport(){
+                        if(!this.is_alpha_locked){
+                            this.overlay.success = false;
+                            this.overlay.contents = this.beta_unlock_text;
+                            this.overlay.display = "dialog";
+                        }
+                    }
+                },
+                mounted() {
+                    let unlock_state = JSON.parse(localStorage.getItem("unlock_state"));
+                    if(unlock_state){
+                        unlock_state.forEach((value, index) => {
+                            this.infos[index].unlocked = value;
+                        });
+                    }
+                },
+
+                watch: {
+                    infos: {
+                        handler: function(new_infos, old_infos){  //infosが変更されたら保存する
+                            let unlock_state = [];
+                            new_infos.map((info) => unlock_state.push(info.unlocked));
+                            localStorage.setItem("unlock_state", JSON.stringify(unlock_state));
+                        },
+                        deep: true
+                    }
+                    // code: {
+                    //     handler: function(new_code, old_code){
+                    //         if(new_code.length >= 6){
+                    //             document.getElementById("textbox").blur();
+                    //         }
+                    //     }
+                    // }
+                }
+            });
+            window.onload = function(){
+                document.getElementById("offset-fixed-area").style.height = document.getElementById("fixed-area").offsetHeight + "px";
+                document.getElementById("info-container").style.maxHeight = (document.documentElement.clientHeight - document.getElementById("fixed-area").offsetHeights) + "px";
+            }
+
+        </script>
+    </body>
+</html>
